@@ -1,5 +1,10 @@
 package d.kh
 
+import com.gargoylesoftware.htmlunit.WebClient
+import com.gargoylesoftware.htmlunit.html.HtmlPage
+import com.gargoylesoftware.htmlunit.html.HtmlPasswordInput
+import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput
+import com.gargoylesoftware.htmlunit.html.HtmlTextInput
 import com.vk.api.sdk.client.VkApiClient
 import com.vk.api.sdk.client.actors.UserActor
 import com.vk.api.sdk.httpclient.HttpTransportClient
@@ -16,12 +21,13 @@ import java.nio.file.Paths
  * https://vk.com/dev/photos.get
  * https://vk.com/dev/Java_SDK
  * https://vk.com/dev/permissions
- *
  */
 fun main(args: Array<String>) {
     val appId = System.getProperty("appId").toInt()
-    val token = System.getProperty("token")
-    val userId = readInt("Enter the userId please")
+    val user = readString("Enter your username (email/phone)")
+    val pass = readString("Enter your password")
+    val token = getToken(appId, user, pass) ?: readString("Access Token not received. Enter the token manually")
+    val photoUser = readInt("Enter the User ID whose photos you want to download")
 
     val vk = VkApiClient(HttpTransportClient.getInstance())
     val actor = UserActor(appId, token)
@@ -29,38 +35,40 @@ fun main(args: Array<String>) {
     val albums = vk.photos()
             .getAlbums(actor)
             .needSystem(true)
-            .ownerId(userId)
+            .ownerId(photoUser)
             .execute()
             .items
     val albumTitleById = albums.associateBy({ it.id.toString() }, { it.title })
 
-    printAlbums(albums)
+    printlnAlbums(albums)
 
-    println()
-    val albumToLoad = readString("Which album to download?", { albumTitleById.contains(it) })
-    val albumFolder = readString("Where to download the album?")
+    if (readString("Shall we download? [Y|N]").equals("Y", ignoreCase = true)) {
+        val albumToLoad = readString("Which album to download?", { albumTitleById.contains(it) })
+        val albumFolder = readString("Where to download the album?")
 
-    val photos = vk.photos()
-            .get(actor)
-            .ownerId(userId)
-            .albumId(albumToLoad)
-            .photoIds()
-            .photoSizes(true)
-            .execute()
-            .items
+        val photos = vk.photos()
+                .get(actor)
+                .ownerId(photoUser)
+                .albumId(albumToLoad)
+                .photoIds()
+                .photoSizes(true)
+                .execute()
+                .items
 
-    val urls = photos.map { it.sizes }
-            .map { it.maxBy { it.type } }
-            .map { it!!.src }
+        val urls = photos.map { it.sizes }
+                .map { it.maxBy { it.type } }
+                .map { it!!.src }
 
-    savePhotos(urls, albumFolder, albumTitleById[albumToLoad]!!)
+        savePhotos(urls, albumFolder, albumTitleById[albumToLoad]!!)
+    }
 }
 
-private fun printAlbums(albums: Collection<PhotoAlbumFull>) {
+private fun printlnAlbums(albums: Collection<PhotoAlbumFull>) {
     val titleIndent = albums.map({ it.title.trim().length }).max()
     val idIndent = albums.map({ it.id.toString().length }).max()
     println("Albums")
     albums.forEach { println("%-${titleIndent}s: %${idIndent}s: %s".format(it.title.trim(), it.id, it.size)) }
+    println()
 }
 
 private fun savePhotos(urls: List<String>, root: String, album: String) {
@@ -83,4 +91,16 @@ private fun savePhotos(urls: List<String>, root: String, album: String) {
         httpClient.execute(HttpGet(url)).entity.writeTo(file.outputStream())
         println("$url downloaded (${i + 1} of ${urls.size})")
     }
+}
+
+private fun getToken(appId: Int, user: String, pass: String): String? {
+    val webClient = WebClient()
+    val url = "https://oauth.vk.com/authorize?client_id=$appId&scope=friends,photos&display=mobile&response_type=token"
+    val page = webClient.getPage<HtmlPage>(url)
+
+    val loginForm = page.forms.first()
+    loginForm.getInputByName<HtmlTextInput>("email").valueAttribute = user
+    loginForm.getInputByName<HtmlPasswordInput>("pass").valueAttribute = pass
+    val respPage = loginForm.getInputByValue<HtmlSubmitInput>("Log in").click<HtmlPage>()
+    return respPage.url.ref.split('&').map { it.split('=') }.map { it[0] to it[1] }.toMap()["access_token"]
 }
