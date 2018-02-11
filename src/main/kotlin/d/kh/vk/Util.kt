@@ -1,4 +1,4 @@
-package d.kh
+package d.kh.vk
 
 import java.util.Scanner
 
@@ -18,4 +18,9 @@ fun readString(prompt: String, successCond: (String) -> Boolean): String {
 fun readInt(prompt: String): Int {
     println(prompt)
     return Scanner(System.`in`).nextInt()
+}
+
+fun readPassword(prompt: String): String {
+    println(prompt)
+    return String(System.console().readPassword())
 }

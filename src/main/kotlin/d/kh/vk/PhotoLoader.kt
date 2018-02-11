@@ -1,4 +1,4 @@
-package d.kh
+package d.kh.vk
 
 import com.gargoylesoftware.htmlunit.WebClient
 import com.gargoylesoftware.htmlunit.html.HtmlPage
@@ -23,9 +23,9 @@ import java.nio.file.Paths
  * https://vk.com/dev/permissions
  */
 fun main(args: Array<String>) {
-    val appId = System.getProperty("appId").toInt()
+    val appId = System.getProperty("appId")?.toInt() ?: readInt("Enter the appId")
     val user = readString("Enter your username (email/phone)")
-    val pass = readString("Enter your password")
+    val pass = readPassword("Enter your password")
     val token = getToken(appId, user, pass) ?: readString("Access Token not received. Enter the token manually")
     val photoUser = readInt("Enter the User ID whose photos you want to download")
 
